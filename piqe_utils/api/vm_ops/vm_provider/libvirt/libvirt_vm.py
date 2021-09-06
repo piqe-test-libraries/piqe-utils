@@ -14,7 +14,10 @@ class LibvirtVM(BaseVM):
         self.domxml = self.dom.XMLDesc(0)
 
     def reboot(self):
-        pass
+        if self.dom:
+            self.dom.reboot()
 
     def graceful_shutdown(self):
+        if self.dom:
+            self.dom.destroy()
         pass
