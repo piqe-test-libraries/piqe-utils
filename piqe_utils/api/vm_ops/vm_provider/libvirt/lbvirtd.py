@@ -1,6 +1,6 @@
 """Module to perform libvirtd related operations"""
 
-from time import time
+from time import asctime, time
 import paramiko
 import subprocess as sp
 
@@ -55,142 +55,88 @@ class Libvirtd(object):
             if None == conne,localhost libvirtd service will be
         managed
         """
-        self.ssh_conn = None
         if conn and isinstance(conn,paramiko.SSHClient):
             self.ssh_conn = conn
-
-    def _wait_for_start(self, timeout=60):
-        """
-        Wait n seconds for libvirt to start.
-        """
-        sp_obj = sp.Popen(f"systemctl start {service_name}",
-        stdout=sp.PIPE,stderr=sp.PIPE,shell=True)
-        out,err = sp_obj.communicate(timeout=timeout)
-        err_info = err.decode()
-        if len(err_info) > 0:
-            print(err_info)
-            return False
-        print(out.decode())
-        return True
-
-    def _wait_for_stop(self, timeout=60):
-        """
-        Wait n seconds for libvirt to stop.
-        """
-        sp_obj = sp.Popen("systemctl stop libvirtd-admin.socket",
-        stdout=sp.PIPE,stderr=sp.PIPE,shell=True)
-        sp_obj.communicate(timeout=timeout)
-        sp_obj = sp.Popen("systemctl stop libvirtd-ro.socket",
-        stdout=sp.PIPE,stderr=sp.PIPE,shell=True)
-        sp_obj.communicate(timeout=timeout)
-        sp_obj = sp.Popen("systemctl stop libvirtd.socket",
-        stdout=sp.PIPE,stderr=sp.PIPE,shell=True)
-        sp_obj.communicate(timeout=timeout)
-        sp_obj = sp.Popen(f"systemctl stop {service_name}",
-        stdout=sp.PIPE,stderr=sp.PIPE,shell=True)
-        out,err = sp_obj.communicate(timeout=timeout)
-        err_info = err.decode()
-        if len(err_info) > 0:
-            print(err_info)
-            return False
-        print(out.decode())
-        return True
-
-    def _wait_for_restart(self, timeout=60):
-        """
-        Wait n seconds for libvirt to restart.
-        """
-        sp_obj = sp.Popen(f"systemctl restart {service_name}",
-        stdout=sp.PIPE,stderr=sp.PIPE,shell=True)
-        out,err = sp_obj.communicate(timeout=timeout)
-        err_info = err.decode()
-        if len(err_info) > 0:
-            print(err_info)
-            return False
-        print(out.decode())
-        return True
-
-    def _is_running(self,timeout=60):
-        """
-        Check whether libvirtd.service is running
-        """
-        sp_obj = sp.Popen(f"systemctl status {service_name}",
-        stdout=sp.PIPE,stderr=sp.PIPE,shell=True)
-        out,err = sp_obj.communicate(timeout=timeout)
-        err_info = err.decode()
-        if len(err_info) > 0:
-            print(err_info)
-            return False
-        if "Active: active" in out.decode():
-            print("running")
-            return True
+            self.run_cmd = self._get_output_remote
         else:
-            return False
+            self.ssh_conn = None
+            self.run_cmd = self._get_output_local
+
+    def _get_output_remote(self,cmd,timeout):
+        """
+        Get cmd running on remote output
+        """
+        if self.ssh_conn:
+            _,out,err = self.ssh_conn.exec_command(cmd,timeout=timeout)
+            err_info = err.read().decode().strip()
+            out_info = out.read().decode().strip()
+            return out_info,err_info
+
+    def _get_output_local(self,cmd,timeout):
+        """
+        Get cmd running on local output
+        """
+        sp_obj = sp.Popen(cmd,stdout=sp.PIPE,stderr=sp.PIPE,shell=True)
+        out,err = sp_obj.communicate(timeout=timeout)
+        err_info = err.decode()
+        out_info = out.decode()
+        return out_info,err_info
 
     def start(self,timeout=60):
-        if self.ssh_conn:
-            _,out,err = self.ssh_conn.exec_command(
-                f"systemctl start {service_name}",timeout=timeout)
-            err_info = err.read().decode().strip()
-            if len(err_info) > 0:
-                print(err_info)
-                return False
-            print(out.read().decode())
-            return True
-        else:
-            return self._wait_for_start(timeout)
+        """
+        Start libvirtd service
+        """
+        cmd = f"systemctl start {service_name}"
+        out_info,err_info = self.run_cmd(cmd,timeout)
+        if len(err_info) > 0:
+            print(err_info)
+            return False
+        print(out_info)
+        return True
 
     def stop(self,timeout=60):
-        if self.ssh_conn:
-            self.ssh_conn.exec_command(
-                "systemctl stop libvirtd-admin.socket",
-                timeout=timeout)
-            self.ssh_conn.exec_command(
-                "systemctl stop libvirtd-ro.socket",
-                timeout=timeout)
-            self.ssh_conn.exec_command(
-                "systemctl stop libvirtd.socket",
-                timeout=timeout)
-            _,out,err = self.ssh_conn.exec_command(
-                f"systemctl stop {service_name}",timeout=timeout)
-            err_info = err.read().decode().strip()
-            if len(err_info) > 0:
-                print(err_info)
-                return False
-            print(out.read().decode())
-            return True
-        else:
-            return self._wait_for_stop(timeout)
+        """
+        Stop libvirtd service
+        """
+        cmd = f"""
+        systemctl stop libvirtd-admin.socket
+        systemctl stop libvirtd-ro.socket
+        systemctl stop libvirtd.socket
+        systemctl stop {service_name}
+        """
+        out_info,err_info = self.run_cmd(cmd,timeout)
+        if len(err_info) > 0:
+            print(err_info)
+            return False
+        print(out_info)
+        return True
 
     def restart(self,timeout=60):
-        if self.ssh_conn:
-            _,out,err = self.ssh_conn.exec_command(
-                f"systemctl restart {service_name}",timeout=timeout)
-            err_info = err.read().decode().strip()
-            if len(err_info) > 0:
-                print(err_info)
-                return False
-            print(out.read().decode())
-            return True
-        else:
-            return self._wait_for_restart(timeout)
+        """
+        Restart libvirtd service
+        """
+        cmd = f"systemctl restart {service_name}"
+        out_info,err_info = self.run_cmd(cmd,timeout)
+        if len(err_info) > 0:
+            print(err_info)
+            return False
+        print(out_info)
+        return True
 
     def is_running(self,timeout=60):
-        if self.ssh_conn:
-            _,out,err = self.ssh_conn.exec_command(
-                f"systemctl status {service_name}",timeout=timeout)
-            err_info = err.read().decode().strip()
-            if len(err_info) > 0:
-                print(err_info)
-                return False
-            if "Active: active" in out.read().decode():
-                print("active")
-                return True
-            else:
-                return False
-        else:
-            return self._is_running(timeout)
-        
+        """
+        Check whether libvirtd is running
+        """
+        cmd = f"systemctl status {service_name}"
+        out_info,err_info = self.run_cmd(cmd,timeout)
+        if len(err_info) > 0:
+            print(err_info)
+            return False
+        print(out_info)
+        if "Active: active" in out_info:
+            print("Active")
+            return True
+        return False
 
 if __name__ == "__main__":
     pass
