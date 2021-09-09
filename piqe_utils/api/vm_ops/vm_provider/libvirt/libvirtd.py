@@ -1,48 +1,16 @@
 """Module to perform libvirtd related operations"""
+import sys
+from paramiko import SSHClient
+import os
 
-from time import asctime, time
-import paramiko
-import subprocess as sp
+# getting the name of the directory
+# where the this file is present.
+current_dir = os.path.dirname(os.path.realpath(__file__))
+# the sys.path.
+sys.path.append(f"{current_dir}/../../../../../")
+from piqe_utils.api.utils import get_output_local, get_output_remote
 
-SSH_PORT = 22
 service_name = "libvirtd.service"
-
-"""
-Get ssh connection
-:param str hostname: the server to connect to
-None means localhost
-:param int port: the server port to connect to
-:param str username:
-    the username to authenticate as (defaults to the current local
-    username)
-:param str password:Used for password authentication
-:raises:
-    `.BadHostKeyException` -- if the server's host key could not be
-    verified
-    :raises: `.AuthenticationException` -- if authentication failed
-    :raises:
-    `.SSHException` -- if there was any other error connecting or
-    establishing an SSH session
-    :raises socket.error: if a socket error occurred while connecting
-
-"""
-def get_ssh_connection(hostname,port=SSH_PORT,username=None,password=None):
-    if None == hostname:
-        return None
-    client = paramiko.SSHClient()
-    client.load_system_host_keys()
-    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    client.connect(hostname,port,username=username, password=password)
-    return client
-
-"""
-Close the ssh connection
-:param SSHClient conn:
-    the conneciton object of SSHClient
-"""
-def close_ssh_connection(conn):
-    if conn and isinstance(conn,paramiko.SSHClient):
-        conn.close()
 
 class Libvirtd(object):
     """
@@ -55,32 +23,16 @@ class Libvirtd(object):
             if None == conne,localhost libvirtd service will be
         managed
         """
-        if conn and isinstance(conn,paramiko.SSHClient):
+        if conn and isinstance(conn,SSHClient):
             self.ssh_conn = conn
-            self.run_cmd = self._get_output_remote
         else:
             self.ssh_conn = None
-            self.run_cmd = self._get_output_local
 
-    def _get_output_remote(self,cmd,timeout):
-        """
-        Get cmd running on remote output
-        """
+    def run_cmd(self,cmd,timeout=60):
         if self.ssh_conn:
-            _,out,err = self.ssh_conn.exec_command(cmd,timeout=timeout)
-            err_info = err.read().decode().strip()
-            out_info = out.read().decode().strip()
-            return out_info,err_info
-
-    def _get_output_local(self,cmd,timeout):
-        """
-        Get cmd running on local output
-        """
-        sp_obj = sp.Popen(cmd,stdout=sp.PIPE,stderr=sp.PIPE,shell=True)
-        out,err = sp_obj.communicate(timeout=timeout)
-        err_info = err.decode()
-        out_info = out.decode()
-        return out_info,err_info
+            return get_output_remote(self.ssh_conn,cmd,timeout)
+        else:
+            return get_output_local(cmd,timeout)
 
     def start(self,timeout=60):
         """
