@@ -1,5 +1,8 @@
-import paramiko
+"""
+Module for utils
+"""
 import subprocess as sp
+import paramiko
 
 SSH_PORT = 22
 
@@ -50,7 +53,7 @@ def get_ssh_connection(
         establishing an SSH session
         :raises socket.error: if a socket error occurred while connecting
     """
-    if None == hostname:
+    if hostname is None:
         return None
     client = paramiko.SSHClient()
     client.load_system_host_keys()
@@ -64,12 +67,12 @@ def get_ssh_connection(
         key_filename=key_filename)
     return client
 
-"""
-Close the ssh connection
-:param SSHClient conn:
-    the conneciton object of SSHClient
-"""
 def close_ssh_connection(conn):
+    """
+    Close the ssh connection
+    :param SSHClient conn:
+        the conneciton object of SSHClient
+    """
     if conn and isinstance(conn,paramiko.SSHClient):
         conn.close()
 
@@ -83,6 +86,7 @@ def get_output_remote(conn,cmd,timeout=60):
         err_info = err.read().decode().strip()
         out_info = out.read().decode().strip()
         return out_info,err_info
+    return None,None
 
 def get_output_local(cmd,timeout=60):
     """
@@ -90,6 +94,6 @@ def get_output_local(cmd,timeout=60):
     """
     sp_obj = sp.Popen(cmd,stdout=sp.PIPE,stderr=sp.PIPE,shell=True)
     out,err = sp_obj.communicate(timeout=timeout)
-    err_info = err.decode()
-    out_info = out.decode()
+    err_info = err.decode().strip()
+    out_info = out.decode().strip()
     return out_info,err_info
